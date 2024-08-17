@@ -15,7 +15,7 @@ import { DatabaseModule } from './database/database.module';
     }),
     ThrottlerModule.forRoot([
       {
-        ttl: 60,
+        ttl: 60000,
         limit: 10,
       },
     ]),
