@@ -1,3 +1,5 @@
+import path from 'path';
+import fs from 'fs';
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
@@ -11,11 +13,38 @@ export class DatabaseService implements OnModuleInit {
   constructor(private configService: ConfigService) {}
 
   onModuleInit() {
-    const serviceAccount = this.configService.get('FIREBASE_SERVICE_ACCOUNT');
-    admin.initializeApp({
-      credential: admin.credential.cert(JSON.parse(serviceAccount)),
-    });
-    this.db = admin.firestore();
+    const configPath = this.configService.get<string>('FIREBASE_CONFIG_PATH');
+    const configBase64 = this.configService.get<string>(
+      'FIREBASE_CONFIG_BASE64',
+    );
+
+    let serviceAccount: admin.ServiceAccount;
+
+    try {
+      if (configPath) {
+        const absolutePath = path.resolve(process.cwd(), configPath);
+        if (!fs.existsSync(absolutePath)) {
+          throw new Error(`Firebase config file not found: ${absolutePath}`);
+        }
+        serviceAccount = JSON.parse(fs.readFileSync(absolutePath, 'utf8'));
+      } else if (configBase64) {
+        serviceAccount = JSON.parse(
+          Buffer.from(configBase64, 'base64').toString('utf8'),
+        );
+      } else {
+        throw new Error(
+          'Firebase configuration not provided. Set FIREBASE_CONFIG_PATH or FIREBASE_CONFIG_BASE64.',
+        );
+      }
+
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+      this.db = admin.firestore();
+    } catch (error) {
+      console.error('Error initializing Firebase:', error);
+      throw error;
+    }
   }
 
   async saveUrl(url: Url): Promise<void> {
