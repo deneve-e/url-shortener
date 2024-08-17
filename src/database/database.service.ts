@@ -48,12 +48,13 @@ export class DatabaseService implements OnModuleInit {
   }
 
   async saveUrl(url: Url): Promise<void> {
-    await this.db.collection('urls').doc(url.shortCode).set(url);
+    await this.db.collection('urls').doc(url.shortCode).set(url.toFirestore());
   }
 
   async getUrl(shortCode: string): Promise<Url | null> {
     const doc = await this.db.collection('urls').doc(shortCode).get();
-    return doc.exists ? (doc.data() as Url) : null;
+    if (!doc.exists) return null;
+    return Url.fromFirestore(doc.data());
   }
 
   async incrementClickCount(shortCode: string): Promise<void> {
