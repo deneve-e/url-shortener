@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { RedisModule } from 'src/redis/redis.module';
-import { DatabaseModule } from 'src/database/database.module';
-
+import { RedisModule } from '../redis/redis.module';
+import { DatabaseModule } from '../database/database.module';
 import { UrlService } from './url.service';
 import { UrlController } from './url.controller';
 

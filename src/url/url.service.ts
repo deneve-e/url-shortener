@@ -1,9 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { customAlphabet } from 'nanoid';
 
-import { RedisService } from 'src/redis/redis.service';
-import { DatabaseService } from 'src/database/database.service';
-
+import { RedisService } from '../redis/redis.service';
+import { DatabaseService } from '../database/database.service';
 import { CreateUrlDto } from './dto/create-url.dto';
 import { Url } from './entities/url.entity';
 
