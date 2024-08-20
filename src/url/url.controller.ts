@@ -7,7 +7,9 @@ import {
   UseGuards,
   BadRequestException,
   NotFoundException,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { validate } from 'class-validator';
@@ -25,7 +27,6 @@ export class UrlController {
   @ApiOperation({ summary: 'Shorten a URL' })
   @ApiResponse({ status: 201, description: 'The shortened URL' })
   async create(@Body() createUrlDto: CreateUrlDto) {
-    // Input validation
     const errors = await validate(createUrlDto);
     if (errors.length > 0) {
       throw new BadRequestException('Invalid URL');
@@ -37,14 +38,14 @@ export class UrlController {
   @Get(':code')
   @ApiOperation({ summary: 'Redirect to original URL' })
   @ApiResponse({ status: 302, description: 'Redirect to original URL' })
-  async redirect(@Param('code') code: string) {
+  async redirect(@Param('code') code: string, @Res() res: Response) {
     const longUrl = await this.urlService.resolveUrl(code);
 
     if (!longUrl) {
       throw new NotFoundException('Short URL not found');
     }
 
-    return { url: longUrl, statusCode: 302 };
+    res.redirect(302, longUrl);
   }
 
   @Get('stats/:code')
