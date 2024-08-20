@@ -9,7 +9,7 @@ import { Url } from './entities/url.entity';
 
 @Injectable()
 export class UrlService {
-  private generateShortCode: () => string;
+  private readonly generateShortCode: () => string;
 
   constructor(
     private readonly redisService: RedisService,
@@ -22,31 +22,47 @@ export class UrlService {
   }
 
   async create(createUrlDto: CreateUrlDto): Promise<Url> {
+    const existingUrl = await this.databaseService.findByLongUrl(
+      createUrlDto.longUrl,
+    );
+    if (existingUrl) return existingUrl;
+
     const shortCode = this.generateShortCode();
     const url = new Url(shortCode, createUrlDto.longUrl);
 
-    await this.redisService.set(shortCode, url.longUrl);
+    await this.cacheUrl(url);
     await this.databaseService.saveUrl(url);
 
     return url;
   }
 
-  async findOne(code: string): Promise<string> {
+  async resolveUrl(code: string): Promise<string> {
     const cachedUrl = await this.redisService.get(code);
-    if (cachedUrl) return cachedUrl;
+    if (cachedUrl) {
+      await this.incrementClickCount(code);
+      return cachedUrl;
+    }
 
     const url = await this.databaseService.getUrl(code);
     if (!url) throw new NotFoundException('URL not found');
 
-    await this.redisService.set(code, url.longUrl);
-    await this.databaseService.incrementClickCount(code);
+    await this.cacheUrl(url);
+    await this.incrementClickCount(code);
 
     return url.longUrl;
   }
 
   async getStats(code: string): Promise<Url> {
     const url = await this.databaseService.getStats(code);
-    if (!url) throw new NotFoundException('URL not found');
+    if (!url) throw new NotFoundException('Stats not found');
     return url;
+  }
+
+  private async cacheUrl(url: Url): Promise<void> {
+    await this.redisService.set(url.shortCode, url.longUrl);
+  }
+
+  private async incrementClickCount(code: string): Promise<void> {
+    await this.databaseService.incrementClickCount(code);
   }
 }

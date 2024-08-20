@@ -5,10 +5,12 @@ import {
   Body,
   Param,
   UseGuards,
-  Redirect,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { validate } from 'class-validator';
 
 import { UrlService } from './url.service';
 import { CreateUrlDto } from './dto/create-url.dto';
@@ -22,23 +24,37 @@ export class UrlController {
   @Post('shorten')
   @ApiOperation({ summary: 'Shorten a URL' })
   @ApiResponse({ status: 201, description: 'The shortened URL' })
-  create(@Body() createUrlDto: CreateUrlDto) {
+  async create(@Body() createUrlDto: CreateUrlDto) {
+    // Input validation
+    const errors = await validate(createUrlDto);
+    if (errors.length > 0) {
+      throw new BadRequestException('Invalid URL');
+    }
+
     return this.urlService.create(createUrlDto);
   }
 
   @Get(':code')
-  @Redirect()
   @ApiOperation({ summary: 'Redirect to original URL' })
   @ApiResponse({ status: 302, description: 'Redirect to original URL' })
   async redirect(@Param('code') code: string) {
-    const url = await this.urlService.findOne(code);
-    return { url };
+    const longUrl = await this.urlService.resolveUrl(code);
+
+    if (!longUrl) {
+      throw new NotFoundException('Short URL not found');
+    }
+
+    return { url: longUrl, statusCode: 302 };
   }
 
   @Get('stats/:code')
   @ApiOperation({ summary: 'Get URL statistics' })
   @ApiResponse({ status: 200, description: 'The URL statistics' })
-  getStats(@Param('code') code: string) {
-    return this.urlService.getStats(code);
+  async getStats(@Param('code') code: string) {
+    const stats = await this.urlService.getStats(code);
+    if (!stats) {
+      throw new NotFoundException('Stats not found');
+    }
+    return stats;
   }
 }
