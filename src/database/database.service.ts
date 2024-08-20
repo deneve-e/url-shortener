@@ -9,7 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
 
-import { Url } from 'src/url/entities/url.entity';
+import { Url } from '../url/entities/url.entity';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit {
@@ -73,7 +73,10 @@ export class DatabaseService implements OnModuleInit {
   async getUrl(shortCode: string): Promise<Url | null> {
     try {
       const doc = await this.getDocument(shortCode);
-      return doc ? Url.fromFirestore(doc.data()) : null;
+      if (!doc) {
+        throw new NotFoundException('URL not found');
+      }
+      return Url.fromFirestore(doc.data());
     } catch (error) {
       this.logger.error(`Failed to get URL: ${shortCode}`, error);
       throw new Error('Failed to retrieve URL from the database.');
@@ -122,7 +125,11 @@ export class DatabaseService implements OnModuleInit {
         `Failed to increment click count for ${shortCode}:`,
         error,
       );
-      throw new Error('Failed to update click count.');
+      if (error instanceof NotFoundException) {
+        throw error;
+      } else {
+        throw new Error('Failed to update click count.');
+      }
     }
   }
 
