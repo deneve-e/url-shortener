@@ -1,6 +1,11 @@
 import path from 'path';
-import fs from 'fs/promises'; // Use promises API
-import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import fs from 'fs/promises';
+import {
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
 
@@ -9,6 +14,7 @@ import { Url } from 'src/url/entities/url.entity';
 @Injectable()
 export class DatabaseService implements OnModuleInit {
   private db: FirebaseFirestore.Firestore;
+  private readonly logger = new Logger(DatabaseService.name);
 
   constructor(private configService: ConfigService) {}
 
@@ -19,51 +25,59 @@ export class DatabaseService implements OnModuleInit {
         credential: admin.credential.cert(serviceAccount),
       });
       this.db = admin.firestore();
+      this.logger.log('Firebase initialized successfully');
     } catch (error) {
-      console.error('Error initializing Firebase:', error);
-      throw error;
+      this.logger.error('Error initializing Firebase:', error);
+      throw new Error(
+        'Failed to initialize Firebase. Check your configuration.',
+      );
     }
   }
 
   private async getServiceAccount(): Promise<admin.ServiceAccount> {
     const configPath = this.configService.get<string>('FIREBASE_CONFIG_PATH');
-    const configBase64 = this.configService.get<string>(
-      'FIREBASE_CONFIG_BASE64',
-    );
-
-    if (configPath) {
-      const absolutePath = path.resolve(process.cwd(), configPath);
-      try {
-        const fileContent = await fs.readFile(absolutePath, 'utf8');
-        return JSON.parse(fileContent);
-      } catch (error) {
-        throw new Error(`Failed to read Firebase config file: ${absolutePath}`);
-      }
+    if (!configPath) {
+      throw new Error(
+        'FIREBASE_CONFIG_PATH is not set in the environment variables.',
+      );
     }
 
-    if (configBase64) {
-      try {
-        const decodedConfig = Buffer.from(configBase64, 'base64').toString(
-          'utf8',
-        );
-        return JSON.parse(decodedConfig);
-      } catch (error) {
-        throw new Error('Failed to decode Firebase config from BASE64.');
-      }
+    const absolutePath = path.resolve(process.cwd(), configPath);
+    try {
+      const fileContent = await fs.readFile(absolutePath, 'utf8');
+      return JSON.parse(fileContent);
+    } catch (error) {
+      this.logger.error(
+        `Failed to read Firebase config file: ${absolutePath}`,
+        error,
+      );
+      throw new Error(
+        'Failed to read Firebase config file. Check the file path and permissions.',
+      );
     }
-
-    throw new Error(
-      'Firebase configuration not provided. Set FIREBASE_CONFIG_PATH or FIREBASE_CONFIG_BASE64.',
-    );
   }
 
   async saveUrl(url: Url): Promise<void> {
-    await this.db.collection('urls').doc(url.shortCode).set(url.toFirestore());
+    try {
+      await this.db
+        .collection('urls')
+        .doc(url.shortCode)
+        .set(url.toFirestore());
+      this.logger.log(`URL saved successfully: ${url.shortCode}`);
+    } catch (error) {
+      this.logger.error(`Failed to save URL: ${url.shortCode}`, error);
+      throw new Error('Failed to save URL to the database.');
+    }
   }
 
   async getUrl(shortCode: string): Promise<Url | null> {
-    const doc = await this.getDocument(shortCode);
-    return doc ? Url.fromFirestore(doc.data()) : null;
+    try {
+      const doc = await this.getDocument(shortCode);
+      return doc ? Url.fromFirestore(doc.data()) : null;
+    } catch (error) {
+      this.logger.error(`Failed to get URL: ${shortCode}`, error);
+      throw new Error('Failed to retrieve URL from the database.');
+    }
   }
 
   async getStats(shortCode: string): Promise<Url | null> {
@@ -71,33 +85,43 @@ export class DatabaseService implements OnModuleInit {
   }
 
   async findByLongUrl(longUrl: string): Promise<Url | null> {
-    const querySnapshot = await this.db
-      .collection('urls')
-      .where('longUrl', '==', longUrl)
-      .limit(1)
-      .get();
+    try {
+      const querySnapshot = await this.db
+        .collection('urls')
+        .where('longUrl', '==', longUrl)
+        .limit(1)
+        .get();
 
-    if (querySnapshot.empty) return null;
+      if (querySnapshot.empty) return null;
 
-    const doc = querySnapshot.docs[0];
-    return Url.fromFirestore(doc.data());
+      const doc = querySnapshot.docs[0];
+      return Url.fromFirestore(doc.data());
+    } catch (error) {
+      this.logger.error(`Failed to find URL by long URL: ${longUrl}`, error);
+      throw new Error('Failed to search for URL in the database.');
+    }
   }
 
   async incrementClickCount(shortCode: string): Promise<void> {
     const urlDoc = this.db.collection('urls').doc(shortCode);
 
-    const docSnapshot = await this.getDocument(shortCode);
-    if (!docSnapshot) {
-      throw new NotFoundException(`URL with shortCode ${shortCode} not found.`);
-    }
-
     try {
+      const docSnapshot = await this.getDocument(shortCode);
+      if (!docSnapshot) {
+        throw new NotFoundException(
+          `URL with shortCode ${shortCode} not found.`,
+        );
+      }
+
       await urlDoc.update({
         clickCount: admin.firestore.FieldValue.increment(1),
       });
-      console.log(`Click count incremented for shortCode: ${shortCode}`);
+      this.logger.log(`Click count incremented for shortCode: ${shortCode}`);
     } catch (error) {
-      console.error(`Failed to increment click count for ${shortCode}:`, error);
+      this.logger.error(
+        `Failed to increment click count for ${shortCode}:`,
+        error,
+      );
       throw new Error('Failed to update click count.');
     }
   }
@@ -105,7 +129,12 @@ export class DatabaseService implements OnModuleInit {
   private async getDocument(
     shortCode: string,
   ): Promise<FirebaseFirestore.DocumentSnapshot | null> {
-    const doc = await this.db.collection('urls').doc(shortCode).get();
-    return doc.exists ? doc : null;
+    try {
+      const doc = await this.db.collection('urls').doc(shortCode).get();
+      return doc.exists ? doc : null;
+    } catch (error) {
+      this.logger.error(`Failed to get document: ${shortCode}`, error);
+      throw new Error('Failed to retrieve document from the database.');
+    }
   }
 }
