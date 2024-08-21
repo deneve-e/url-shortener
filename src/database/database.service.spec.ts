@@ -3,7 +3,7 @@ import { DatabaseService } from './database.service';
 import { ConfigService } from '@nestjs/config';
 import * as admin from 'firebase-admin';
 import { Url } from '../url/entities/url.entity';
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, Logger } from '@nestjs/common';
 
 jest.mock('firebase-admin', () => {
   const mockCollection = jest.fn().mockReturnThis();
@@ -55,8 +55,17 @@ jest.mock('firebase-admin', () => {
 describe('DatabaseService', () => {
   let service: DatabaseService;
   let firestoreMock: any;
+  let loggerMock: jest.Mocked<Logger>;
 
   beforeEach(async () => {
+    loggerMock = {
+      log: jest.fn(),
+      error: jest.fn(),
+      warn: jest.fn(),
+      debug: jest.fn(),
+      verbose: jest.fn(),
+    } as any;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DatabaseService,
@@ -70,6 +79,8 @@ describe('DatabaseService', () => {
     }).compile();
 
     service = module.get<DatabaseService>(DatabaseService);
+    // Inject the mock logger
+    (service as any).logger = loggerMock;
     firestoreMock = admin.firestore();
 
     // Mock fs.readFile
@@ -86,6 +97,9 @@ describe('DatabaseService', () => {
 
   it('should initialize Firebase successfully', () => {
     expect(admin.initializeApp).toHaveBeenCalled();
+    expect(loggerMock.log).toHaveBeenCalledWith(
+      'Firebase initialized successfully',
+    );
   });
 
   it('should save a URL', async () => {
@@ -98,6 +112,9 @@ describe('DatabaseService', () => {
     expect(firestoreMock.collection).toHaveBeenCalledWith('urls');
     expect(firestoreMock.doc).toHaveBeenCalledWith('testCode');
     expect(firestoreMock.set).toHaveBeenCalledWith(expect.any(Object));
+    expect(loggerMock.log).toHaveBeenCalledWith(
+      'URL saved successfully: testCode',
+    );
   });
 
   it('should retrieve a URL by short code', async () => {
@@ -127,13 +144,9 @@ describe('DatabaseService', () => {
   it('should increment click count', async () => {
     firestoreMock.get.mockResolvedValueOnce({
       exists: true,
-      data: () => ({
-        shortCode: 'testCode',
-        longUrl:
-          'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
-        clickCount: 0,
-        createdAt: admin.firestore.Timestamp.fromDate(new Date()),
-      }),
+      ref: {
+        update: firestoreMock.update,
+      },
     });
 
     await service.incrementClickCount('testCode');
@@ -151,6 +164,12 @@ describe('DatabaseService', () => {
     await expect(
       service.incrementClickCount('nonexistentCode'),
     ).rejects.toThrow(NotFoundException);
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Failed to increment click count for nonexistentCode:',
+      ),
+      expect.any(NotFoundException),
+    );
   });
 
   it('should find URL by long URL', async () => {
@@ -187,5 +206,30 @@ describe('DatabaseService', () => {
 
     const result = await service.findByLongUrl('https://nonexistent.com');
     expect(result).toBeNull();
+  });
+
+  it('should throw an error when failing to save URL', async () => {
+    const url = new Url('testCode', 'https://www.example.com');
+    firestoreMock.set.mockRejectedValueOnce(new Error('Firebase error'));
+
+    await expect(service.saveUrl(url)).rejects.toThrow(
+      'Failed to save URL to the database.',
+    );
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      'Failed to save URL: testCode',
+      expect.any(Error),
+    );
+  });
+
+  it('should throw an error when failing to get URL', async () => {
+    firestoreMock.get.mockRejectedValueOnce(new Error('Firebase error'));
+
+    await expect(service.getUrl('testCode')).rejects.toThrow(
+      'Failed to retrieve URL from the database.',
+    );
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      'Failed to get URL: testCode',
+      expect.any(Error),
+    );
   });
 });
