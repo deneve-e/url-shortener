@@ -89,7 +89,10 @@ describe('DatabaseService', () => {
   });
 
   it('should save a URL', async () => {
-    const url = new Url('testCode', 'https://example.com');
+    const url = new Url(
+      'testCode',
+      'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
+    );
     await service.saveUrl(url);
 
     expect(firestoreMock.collection).toHaveBeenCalledWith('urls');
@@ -100,7 +103,8 @@ describe('DatabaseService', () => {
   it('should retrieve a URL by short code', async () => {
     const mockDocData = {
       shortCode: 'testCode',
-      longUrl: 'https://example.com',
+      longUrl:
+        'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
       clickCount: 0,
       createdAt: admin.firestore.Timestamp.fromDate(new Date()),
     };
@@ -113,7 +117,9 @@ describe('DatabaseService', () => {
     const result = await service.getUrl('testCode');
     expect(result).toBeInstanceOf(Url);
     expect(result.shortCode).toBe('testCode');
-    expect(result.longUrl).toBe('https://example.com');
+    expect(result.longUrl).toBe(
+      'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
+    );
     expect(result.clickCount).toBe(0);
     expect(result.createdAt).toBeInstanceOf(Date);
   });
@@ -123,7 +129,8 @@ describe('DatabaseService', () => {
       exists: true,
       data: () => ({
         shortCode: 'testCode',
-        longUrl: 'https://example.com',
+        longUrl:
+          'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
         clickCount: 0,
         createdAt: admin.firestore.Timestamp.fromDate(new Date()),
       }),
@@ -149,7 +156,8 @@ describe('DatabaseService', () => {
   it('should find URL by long URL', async () => {
     const mockDocData = {
       shortCode: 'testCode',
-      longUrl: 'https://example.com',
+      longUrl:
+        'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
       clickCount: 0,
       createdAt: admin.firestore.Timestamp.fromDate(new Date()),
     };
@@ -159,10 +167,14 @@ describe('DatabaseService', () => {
       docs: [{ data: () => mockDocData }],
     });
 
-    const result = await service.findByLongUrl('https://example.com');
+    const result = await service.findByLongUrl(
+      'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
+    );
     expect(result).toBeInstanceOf(Url);
     expect(result.shortCode).toBe('testCode');
-    expect(result.longUrl).toBe('https://example.com');
+    expect(result.longUrl).toBe(
+      'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
+    );
     expect(result.clickCount).toBe(0);
     expect(result.createdAt).toBeInstanceOf(Date);
   });

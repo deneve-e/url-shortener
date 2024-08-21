@@ -50,27 +50,38 @@ describe('UrlService', () => {
 
   describe('create', () => {
     it('should return existing URL if it already exists', async () => {
-      const createUrlDto: CreateUrlDto = { longUrl: 'https://example.com' };
-      const existingUrl = new Url('abc123', 'https://example.com');
+      const createUrlDto: CreateUrlDto = {
+        longUrl:
+          'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
+      };
+      const existingUrl = new Url(
+        'abc123',
+        'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
+      );
       databaseService.findByLongUrl.mockResolvedValue(existingUrl);
 
       const result = await service.create(createUrlDto);
 
       expect(result).toEqual(existingUrl);
       expect(databaseService.findByLongUrl).toHaveBeenCalledWith(
-        'https://example.com',
+        'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
       );
       expect(databaseService.saveUrl).not.toHaveBeenCalled();
     });
 
     it('should create a new URL if it does not exist', async () => {
-      const createUrlDto: CreateUrlDto = { longUrl: 'https://example.com' };
+      const createUrlDto: CreateUrlDto = {
+        longUrl:
+          'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
+      };
       databaseService.findByLongUrl.mockResolvedValue(null);
 
       const result = await service.create(createUrlDto);
 
       expect(result).toBeInstanceOf(Url);
-      expect(result.longUrl).toBe('https://example.com');
+      expect(result.longUrl).toBe(
+        'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
+      );
       expect(databaseService.saveUrl).toHaveBeenCalled();
       expect(redisService.set).toHaveBeenCalled();
     });
@@ -79,7 +90,8 @@ describe('UrlService', () => {
   describe('resolveUrl', () => {
     it('should return cached URL if it exists in Redis', async () => {
       const shortCode = 'abc123';
-      const longUrl = 'https://example.com';
+      const longUrl =
+        'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values';
       redisService.get.mockResolvedValue(longUrl);
 
       const result = await service.resolveUrl(shortCode);
@@ -94,7 +106,10 @@ describe('UrlService', () => {
 
     it('should fetch URL from database if not in Redis', async () => {
       const shortCode = 'abc123';
-      const url = new Url(shortCode, 'https://example.com');
+      const url = new Url(
+        shortCode,
+        'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
+      );
       redisService.get.mockResolvedValue(null);
       databaseService.getUrl.mockResolvedValue(url);
 
@@ -123,7 +138,11 @@ describe('UrlService', () => {
   describe('getStats', () => {
     it('should return URL stats if they exist', async () => {
       const shortCode = 'abc123';
-      const url = new Url(shortCode, 'https://example.com', 5);
+      const url = new Url(
+        shortCode,
+        'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
+        5,
+      );
       databaseService.getStats.mockResolvedValue(url);
 
       const result = await service.getStats(shortCode);

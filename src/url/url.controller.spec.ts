@@ -58,7 +58,6 @@ describe('UrlController', () => {
     it('should throw BadRequestException if the DTO is invalid', async () => {
       const createUrlDto = { longUrl: '' }; // Invalid DTO
 
-      // Mock validate to return validation errors
       validateMock.mockResolvedValue([
         {
           property: 'longUrl',
@@ -72,10 +71,12 @@ describe('UrlController', () => {
     });
 
     it('should return the shortened URL if the DTO is valid', async () => {
-      const createUrlDto = { longUrl: 'http://example.com' };
+      const createUrlDto = {
+        longUrl:
+          'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
+      };
       const createdUrl = new Url('shortCode', createUrlDto.longUrl);
 
-      // Mock validate to return no errors
       validateMock.mockResolvedValue([]);
 
       urlService.create.mockResolvedValue(createdUrl);
@@ -89,7 +90,8 @@ describe('UrlController', () => {
   describe('redirect', () => {
     it('should redirect to the original URL if the short code exists', async () => {
       const code = 'shortCode';
-      const longUrl = 'http://example.com';
+      const longUrl =
+        'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values';
       const res = {
         redirect: jest.fn(),
       } as unknown as Response;
@@ -119,7 +121,11 @@ describe('UrlController', () => {
   describe('getStats', () => {
     it('should return the stats if the short code exists', async () => {
       const code = 'shortCode';
-      const stats = new Url(code, 'http://example.com', 10);
+      const stats = new Url(
+        code,
+        'https://www.example.com/some/very/long/path/that/needs/to/be/shortened?query=params&more=values',
+        10,
+      );
 
       urlService.getStats.mockResolvedValue(stats);
 
