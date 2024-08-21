@@ -10,18 +10,14 @@ export class RedisService implements OnModuleDestroy {
     private configService: ConfigService,
     private logger: Logger,
   ) {
-    const host = this.configService.get<string>('REDIS_HOST');
-    const port = this.configService.get<number>('REDIS_PORT');
+    const redisUrl = this.configService.get<string>('REDIS_URL');
 
-    if (!host || !port) {
+    if (!redisUrl) {
       this.logger.error('Redis configuration is missing');
       throw new Error('Redis configuration is missing');
     }
 
-    this.redis = new Redis({
-      host,
-      port,
-    });
+    this.redis = new Redis(redisUrl);
 
     this.redis.on('error', (error) => {
       this.logger.error(

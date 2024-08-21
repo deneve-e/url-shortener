@@ -12,6 +12,8 @@ describe('RedisService', () => {
   let redisMock: jest.Mocked<Redis>;
   let loggerMock: jest.Mocked<Logger>;
 
+  const mockRedisUrl = 'redis://mock.redis.url:6379';
+
   beforeEach(async () => {
     loggerMock = {
       log: jest.fn(),
@@ -28,8 +30,7 @@ describe('RedisService', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string) => {
-              if (key === 'REDIS_HOST') return 'localhost';
-              if (key === 'REDIS_PORT') return 6379;
+              if (key === 'REDIS_URL') return mockRedisUrl;
               return null;
             }),
           },
@@ -56,10 +57,7 @@ describe('RedisService', () => {
   });
 
   it('should create Redis client with correct configuration', () => {
-    expect(Redis).toHaveBeenCalledWith({
-      host: 'localhost',
-      port: 6379,
-    });
+    expect(Redis).toHaveBeenCalledWith(mockRedisUrl);
   });
 
   it('should throw error if Redis configuration is missing', () => {
